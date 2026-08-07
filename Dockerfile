@@ -8,7 +8,7 @@
 # que un compromiso del upstream rompa el build en vez de colarse en silencio.
 #
 # Actualizar est digest: ver .github/dependabot.yml (PR automatico).
-FROM node:24-slim@sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03
+FROM node:25-slim@sha256:81db02c4b671288a03915da9534dbd54f96d0e7c24d80ccc54f5b36b2e684370
 
 # ------------------------------------------------------------------------------------------
 # Capa de sistema
