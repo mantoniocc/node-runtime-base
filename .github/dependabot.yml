@@ -1,0 +1,24 @@
+version: 2
+updates:
+  # Actualiza el digest del FROM cuando el upstream publica una imagen nueva.
+  # Sin esto, pinner por digest te deja congelado en un Debian con CVEs.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - "tipo:dependencias"
+
+  # Mantiene actualizada las actions de los workflows.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "chore(ci)"
+    labels:
+      - "tipo:dependencias"
