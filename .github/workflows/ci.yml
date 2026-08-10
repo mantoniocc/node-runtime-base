@@ -1,0 +1,55 @@
+name: CI
+
+on:
+    push:
+        branches: [main]
+    pull_request: 
+        branches: [main]
+    workflow_dispatch: 
+
+permissions: 
+    contents: read
+
+concurrency: 
+    group: ${{github.workflow}}-${{github.ref}}
+    cancel-in-progress: false
+
+jobs:
+    build-and-verify:
+        name: Build y contrato
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v7
+
+            - name: Setup Buildx
+              uses: docker/setup-buildx-action@v4
+
+            - name: Metadatos del build
+              id: meta
+              run: echo "date=$(date -u +%Y-%m-%dT%H:%M:$SZ)" >> "$GITHUB_OUTPUT"
+
+            # load: true importa la imagen al daemon local para poder ejecutarla.
+            # push: false - este workflow nunca publica.
+            - name: Build
+              uses: docker/build-push-action@v7
+              with:
+                context: .
+                load: true
+                push: false
+                tags: node-runtime-base:ci
+                build-args: |
+                    BUILD_DATE=${{steps.meta.outputs.date}}
+                    VCS_REF=${{github.sha}}
+                    VERSION=0.0.0-ci
+                cache-from: type=gha
+                cache-to: type=gha,mode=max
+
+            - name: Verificar contrato
+              run: ./scripts/verify-image.sh node-runtime-base:ci
+
+            - name: Tamaño de la imagen
+              run: |
+                SIZE=$(docker image inspect node-runtime-base:ci --format '{{.Size}}')
+                echo "### Imagen" >> "$GITHUB_STEP_SUMMARY"
+                echo "Tamaño: $(numfmt --to=iec "$SIZE")" >> "GITHUB_STEP_SUMMARY"

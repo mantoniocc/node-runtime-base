@@ -1,0 +1,97 @@
+name: Release
+
+on:
+    release:
+        types: [published]
+
+permissions: 
+    contents: read
+
+jobs:
+    publish:
+        name: Publicar en GHCR
+        runs-on: ubuntu-latest
+        permissions: 
+            contents: read
+            packages: write
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v7
+
+            - name: Validar el tag y derivar la version
+              id: version
+              env:
+                TAG: ${{github.event.release.tag_name}}
+              run: |
+                VERSION="${TAG#v}"
+
+                # El tag s la UNICA fuente de la verdad de la version.
+                # No hay package.json que pueda divergir, pero si hay que
+                # garantizar que el formato sea SemVer.
+                if ! echo "VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+                    echo "::error::Tag '$TAG' no es SemVer valido. Formato esperado: vMAJOR.MINOR.PATCH"
+                    exit 1
+                fi
+
+                echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+                echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+                echo "Versión: $VERSION"
+
+            - name: Setup Buildx
+              uses: docker/setup-buildx-action@v4
+
+            # Auenticacion contra GHCR. Sin PAT: GITHUB_TOKEN alcalza
+            # porque este job declara packages: write.
+            - name: Login en GHCR
+              uses: docker/login-action@v4
+              with:
+                registry: ghcr.io
+                username: ${{github.actor}}
+                password: ${{secrets.GITHUB_TOKEN}}
+
+            # Construimos UNA vez y cargamos localmente. Nada se publica todavia. 
+            - name: Build
+              uses: docker/build-push-action@v7
+              with:
+                context: .
+                load: true
+                push: false
+                tags: ghcr.io/${{github.repository}}:${{steps.version.outputs.version}}
+                build-args:
+                    BUILD_DATE=${{steps.version.outputs.date}}
+                    VCS_REF=${{github.sha}}
+                    VERSION=${{steps.version.outputs.version}}
+                cache-from: type=gha
+                cache-to: type=gha,mode=max
+
+            # El gate. Si el contrato no se cumple, no hay push.
+            - name: Verificar contrato
+              run: |
+                ./scripts/verify-image.sh \
+                    "ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}"
+
+            # Publicamos exactamente la imagen que acabamos de verificar
+            - name: Push
+              run: docker push "ghcr.io/${{github.repository}}:${{steps.version.outputs.version}}"
+
+            - name: Resumen
+              env:
+                VERSION: ${{steps.version.outputs.version}}
+              run: |
+                REF="ghcr.io/${{ github.repository }}:$VERSION"
+                DIGEST=$(docker image inspect "$REF" --format '{{index .RepoDigests 0}}')
+                {
+                    echo "## Publicado"
+                    echo ""
+                    echo "| | |"
+                    echo "|---|---|"
+                    echo "| Imagen | \`$REF\` |"
+                    echo "| Digest | \`${DIGEST#*@}\` |"
+                    echo "| Commit | \`${GITHUB_SHA:0:7}\` |"
+                    echo ""
+                    echo "Pull (sin credenciales):"
+                    echo '```bash'
+                    echo "docker pull $REF"
+                    echo '```'
+                } >> "$GITHUB_STEP_SUMMARY"
+
