@@ -52,4 +52,4 @@ jobs:
               run: |
                 SIZE=$(docker image inspect node-runtime-base:ci --format '{{.Size}}')
                 echo "### Imagen" >> "$GITHUB_STEP_SUMMARY"
-                echo "Tamaño: $(numfmt --to=iec "$SIZE")" >> "GITHUB_STEP_SUMMARY"
+                echo "Tamaño: $(numfmt --to=iec "$SIZE")" >> "$GITHUB_STEP_SUMMARY"
