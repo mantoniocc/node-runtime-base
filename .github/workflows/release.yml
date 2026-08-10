@@ -7,6 +7,9 @@ on:
 permissions:
   contents: read
 
+env:
+    IMAGE: ghcr.io/${{github.repository}}
+
 jobs:
   publish:
     name: Publicar en GHCR
@@ -18,7 +21,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Validar el tag y derivar la versión
+      - name: Validar el tag
         id: version
         env:
           TAG: ${{ github.event.release.tag_name }}
@@ -34,8 +37,10 @@ jobs:
           fi
 
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
-          echo "Versión: $VERSION"
+
+      # QEMU permite construir arm64 en un runner amd64 por emulacion.
+      - name: Setup Qemu
+        uses: docker/setup-qemu-action@v4
 
       - name: Setup Buildx
         uses: docker/setup-buildx-action@v4
@@ -49,16 +54,37 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Construimos UNA vez y cargamos localmente. Nada se publica todavía.
-      - name: Build
+      # Deriva tags y labels OCI a partir del evento.
+      - name: Metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+            images: ${{env.IMAGE}}
+            tags: |
+                type=semver,pattern={{version}}
+                type=semver,pattern={{major}}.{{minor}}
+                type=semver,pattern={{major}}
+                typ=raw,value=latest,enable=${{github.event.release.prerelease == false}}
+            labels: |
+                org.opencontainers.image.title=node-runtime-base
+                org.opencontainers.image.description=Imagen base de Node.js 24 hardenizada para la plataforma
+                org.opencontainers.image.vendor=mantoniocc
+                org.opencontainers.image.licenses=MIT
+                org.opencontainers.image.base.name=docker.io/library/node:24-bookworm-slim
+
+      # PASO 1 — Build de una sola plataforma para poder EJECUTAR y verificar.
+      # load: true no soporta múltiples plataformas: la imagen tendría que
+      # ser una manifest list y el daemon local solo acepta una arquitectura.
+      - name: Build para verificacion (amd64)
         uses: docker/build-push-action@v7
         with:
           context: .
+          platform: linux/amd64
           load: true
           push: false
-          tags: ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
+          tags: verify-target:local
           build-args: |
-            BUILD_DATE=${{ steps.version.outputs.date }}
+            BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
             VCS_REF=${{ github.sha }}
             VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha
@@ -70,27 +96,44 @@ jobs:
           ./scripts/verify-image.sh \
             "ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}"
 
-      # Publicamos exactamente la imagen que acabamos de verificar.
-      - name: Push
-        run: docker push "ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}"
+
+      # PASO 2 — Build multi-arch y push. La cache de gha hace que amd64
+      # se reutilice del paso anterior; solo se construye arm64.
+      - name: Build multi-arch y push
+        id: push
+        uses: docker/build-push-action@v7
+        with:
+            context: .
+            plaforms: linux/amd64,linux/arm64
+            push: true
+            tags: ${{steps.meta.outputs.tags}}
+            labels: ${{steps.meta.outputs.labels}}
+            annotations: ${{steps.meta.outputs.annotations}}
+            build-args: |
+                BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+                VCS_REF=${{ github.sha }}
+                VERSION=${{ steps.version.outputs.version }}
+            cache-from: type=gha
+            cache-to: type=gha,mode=max
+
 
       - name: Resumen
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+          DIGEST: ${{ steps.push.outputs.digest }}
         run: |
-          REF="ghcr.io/${{ github.repository }}:$VERSION"
-          DIGEST=$(docker image inspect "$REF" --format '{{index .RepoDigests 0}}')
           {
             echo "## Publicado"
             echo ""
-            echo "| | |"
-            echo "|---|---|"
-            echo "| Imagen | \`$REF\` |"
-            echo "| Digest | \`${DIGEST#*@}\` |"
-            echo "| Commit | \`${GITHUB_SHA:0:7}\` |"
+            echo "**Digest:** \`$DIGEST\`"
             echo ""
-            echo "Pull (sin credenciales):"
-            echo '```bash'
-            echo "docker pull $REF"
+            echo "**Tags:**"
+            echo "$TAGS" | sed 's/^/- `/;s/$/`/'
+            echo ""
+            echo "**Plataformas:** linux/amd64, linux/arm64"
+            echo ""
+            echo "Referencia inmutable:"
+            echo '```'
+            echo "${{ env.IMAGE }}@$DIGEST"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
