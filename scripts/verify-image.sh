@@ -8,6 +8,7 @@ set -euo pipefail
 IMAGE="${1:?Uso: $0 <imagen>}"
 EXPECTED_UID=1000
 EXPECTED_NODE_MAJOR=24
+EXPECTED_DISTRO_CODENAME=bookworm
 
 FAILED=0
 
@@ -45,14 +46,14 @@ fi
 check "npm disponible" docker run --rm "$IMAGE" npm --version
 
 echo
-# echo "Init y señales:"
-# PID1="$(docker run --rm "$IMAGE" ps -o comm= -p 1 | tr -d ' ')"
-# if [ "$PID1" = "tini" ]; then
-#   echo "  ✓ tini es PID 1"
-# else
-#   echo "  ✗ PID 1 es '$PID1', se esperaba tini"
-#   FAILED=1
-# fi
+echo "Init y señales:"
+PID1="$(docker run --rm "$IMAGE" cat /proc/1/comm | tr -d '[:space:]')"
+if [ "$PID1" = "tini" ]; then
+  echo "  ✓ tini es PID 1"
+else
+  echo "  ✗ PID 1 es '$PID1', se esperaba tini"
+  FAILED=1
+fi
 
 CID="$(docker run -d "$IMAGE" node -e 'setInterval(()=>{},1000)')"
 START=$(date +%s)
@@ -68,6 +69,16 @@ fi
 
 echo
 echo "Sistema:"
+DISTRO="$(docker run --rm "$IMAGE" \
+  sh -c '. /etc/os-release && echo "$VERSION_CODENAME"' | tr -d '[:space]')"
+if [ "$DISTRO" = "$EXPECTED_DISTRO_CODENAME" ]; then
+  echo "  ✓ distro base: Debian $DISTRO"
+else
+  echo "  ✗ distro base: '$DISTRO', se esperaba '$EXPECTED_DISTRO_CODENAME'"
+  echo "    Un cambio de distro es MAJOR. Si es intencional, actualizá"
+  echo "    EXPECTED_DISTRO_CODENAME y documentalo como breaking change."
+  FAILED=1
+fi
 check "certificados CA presentes" \
   docker run --rm "$IMAGE" node -e "fetch('https://api.github.com').then(r=>process.exit(r.ok?0:1))"
 check "/app existe y es escribible" \

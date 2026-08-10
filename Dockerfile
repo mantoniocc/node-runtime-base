@@ -1,14 +1,16 @@
 # syntax=docker/dockerfile:1
 
-# Imagen base de platafrma - Node.js 24 sobre Debian bookworm-slim-
+# Imagen base de plataforma — Node.js 24 sobre Debian bookworm-slim.
 #
-# El upstream se pinnea por DIGEST DEL INDICE multi-arquitectura, no por tag.
-# Un tag es un puntero mutable: node:24-slim apunto hoy a una imagen y mañana
-# a otra, sin aviso. Pinnear al indice garantiza builds reproducibles y hace
-# que un compromiso del upstream rompa el build en vez de colarse en silencio.
+# CONTRATO: Debian 12 (bookworm). El tag es explícito a propósito.
+# Con un digest presente el tag no se consulta al resolver, pero SÍ define
+# la vía de actualización de Dependabot: pinnear `24-slim` haría que un
+# cambio de distro del upstream (bookworm → trixie) llegara como un PR de
+# rutina indistinguible de un parche. Con `24-bookworm-slim` eso no pasa.
 #
-# Actualizar est digest: ver .github/dependabot.yml (PR automatico).
-FROM node:24-slim@sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03
+# Migrar de distro es un cambio MAJOR y una decisión deliberada, no un bump.
+# Revisar el EOL de bookworm: https://wiki.debian.org/LTS
+FROM node:24-bookworm-slim@sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03
 
 # ------------------------------------------------------------------------------------------
 # Capa de sistema
@@ -83,7 +85,7 @@ LABEL org.opencontainers.image.title="node-runtime-base" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.source="https://github.com/mantoniocc/node-runtime-base" \
       org.opencontainers.image.documentation="https://github.com/mantoniocc/node-runtime-base#readme" \
-      org.opencontainers.image.base.name="docker.io/library/node:24-slim" \
+      org.opencontainers.image.base.name="docker.io/library/node:24-bookworm-slim" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.version="${VERSION}"  
