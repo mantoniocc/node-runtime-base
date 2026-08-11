@@ -130,7 +130,7 @@ jobs:
             push: false
             tags: verify-debug:local
             cache-from: type=gha
-            cache-to: tye=gha,mode=max
+            cache-to: type=gha,mode=max
 
       - name: Verificar contrato (debug)
         env:
