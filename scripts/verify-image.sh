@@ -9,6 +9,7 @@ IMAGE="${1:?Uso: $0 <imagen>}"
 EXPECTED_UID=1000
 EXPECTED_NODE_MAJOR=24
 EXPECTED_DISTRO_CODENAME=bookworm
+VARIANT="${VARIANT:-runtime}"
 
 FAILED=0
 
@@ -83,8 +84,16 @@ check "certificados CA presentes" \
   docker run --rm "$IMAGE" node -e "fetch('https://api.github.com').then(r=>process.exit(r.ok?0:1))"
 check "/app existe y es escribible" \
   docker run --rm "$IMAGE" sh -c 'touch /app/.probe && rm /app/.probe'
-check "sin caché de apt" \
-  docker run --rm "$IMAGE" sh -c '[ -z "$(ls -A /var/lib/apt/lists 2>/dev/null)" ]'
+if [ "$VARIANT" = "runtime" ]; then
+  check "sin caché de apt" \
+    docker run --rm "$IMAGE" sh -c '[ -z "$(ls -A /var/lib/apt/lists 2>/dev/null)" ]'
+  check "sin curl (superficie de ataque mínima)" \
+    docker run --rm "$IMAGE" sh -c '! command -v curl'
+else
+  check "curl disponible" docker run --rm "$IMAGE" sh -c 'command -v curl'
+  check "ps disponible"   docker run --rm "$IMAGE" sh -c 'command -v ps'
+  check "dig disponible"  docker run --rm "$IMAGE" sh -c 'command -v dig'
+fi
 
 echo
 echo "Metadata OCI:"
