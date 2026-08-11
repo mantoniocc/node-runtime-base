@@ -65,6 +65,8 @@ jobs:
             org.opencontainers.image.vendor=mantoniocc
             org.opencontainers.image.licenses=MIT
             org.opencontainers.image.base.name=docker.io/library/node:24-bookworm-slim
+          annotations: |
+            org.opencontainers.image.description=Imagen base de Node.js 24 hardenizada para la plataforma
 
       # PASO 1 — Build de una sola plataforma para poder EJECUTAR y verificar.
       # load: true no soporta múltiples plataformas: la imagen tendría que
