@@ -17,6 +17,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write       # token OIDC para el certificado Sigstore
+      attestations: write   # persistir la attestation 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -105,6 +107,32 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Generar SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{env.IMAGE}}@${{steps.push.outputs.digest}}
+          format: spdx-json
+          output-file: sbom.spdx.json
+          # No adjuntar al Release: lo distribuiremos como attestation.
+          upload-artifact: false
+
+      - name: Attestation de SBOM
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{env.IMAGE}}
+          subject-digest: ${{steps.push.outputs.digest}}
+          predicate-type: https://spdx.dev/Document
+          predicate-path: sbom.spdx.json
+          push-to-registry: true
+
+      - name: Attestation de procedencia
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{env.IMAGE}}
+          subject-digest: ${{steps.push.outputs.digest}}
+          # Escribe la attestation en el propio registry, junto a la imagen.
+          push-to-registry: true
+          
       - name: Resumen
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
