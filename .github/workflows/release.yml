@@ -110,17 +110,17 @@ jobs:
       - name: Generar SBOM
         uses: anchore/sbom-action@v0
         with:
-          image: ${{env.IMAGE}}@${{steps.push.outputs.digest}}
+          image: ${{ env.IMAGE }}@${{ steps.push.outputs.digest }}
           format: spdx-json
           output-file: sbom.spdx.json
-          # No adjuntar al Release: lo distribuiremos como attestation.
+          # No adjuntar al Release: lo distribuimos como attestation.
           upload-artifact: false
 
       - name: Attestation de SBOM
         uses: actions/attest@v4
         with:
-          subject-name: ${{env.IMAGE}}
-          subject-digest: ${{steps.push.outputs.digest}}
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
           predicate-type: https://spdx.dev/Document
           predicate-path: sbom.spdx.json
           push-to-registry: true
