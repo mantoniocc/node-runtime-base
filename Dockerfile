@@ -10,7 +10,7 @@
 #
 # Migrar de distro es un cambio MAJOR y una decisión deliberada, no un bump.
 # Revisar el EOL de bookworm: https://wiki.debian.org/LTS
-FROM node:24-bookworm-slim@sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03 AS runtime
+FROM node:24-bookworm-slim@sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03
 
 # ------------------------------------------------------------------------------------------
 # Capa de sistema
@@ -88,36 +88,4 @@ LABEL org.opencontainers.image.title="node-runtime-base" \
       org.opencontainers.image.base.name="docker.io/library/node:24-bookworm-slim" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.revision="${VCS_REF}" \
-      org.opencontainers.image.version="${VERSION}"  
-
-# ---------------------------------------------------------------------------
-# Etapa `debug` — variante con herramientas de diagnóstico.
-#
-# NO usar en producción: cada herramienta acá es superficie de ataque.
-# curl y wget en particular son las herramientas de exfiltración y de
-# descarga de segunda etapa de cualquier atacante que logre un RCE.
-#
-# Uso previsto: desarrollo, staging, y sustitución temporal durante un
-# incidente (`kubectl set image ... :1-debug`).
-#
-# Hereda de la etapa runtime: mismo Node, mismo UID, mismo tini.
-# Lo que reproduzcas acá es lo que corre en producción, más herramientas.
-# ---------------------------------------------------------------------------
-FROM runtime AS debug
-
-USER root
-RUN set -eux; \
-    apt-get update; \
-    apt-get install -y --no-install-recommends \
-        procps \
-        curl \
-        dnsutils \
-        iproute2 \
-        less \
-        vim-tiny; \
-    apt-get clean; \
-    rm -rf /var/lib/apt/lists/*
-USER node
-
-LABEL org.opencontainers.image.title="node-runtime-base-debug" \
-      org.opencontainers.image.description="Variante con herramientas de diagnóstico. NO usar en produccion."
+      org.opencontainers.image.version="${VERSION}"

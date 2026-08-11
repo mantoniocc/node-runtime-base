@@ -72,7 +72,6 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          target: runtime
           platforms: linux/amd64
           load: true
           push: false
@@ -94,58 +93,11 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          target: runtime
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
-          build-args: |
-            BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
-            VCS_REF=${{ github.sha }}
-            VERSION=${{ steps.version.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Metadata (debug)
-        id: meta-debug
-        uses: docker/metadata-action@v6
-        with:
-            images: ${{env.IMAGE}}
-            flavor: |
-                suffix=-debug,onlatest=true
-            tags: |
-                type=semver,pattern={{version}}
-                type=semver,pattern={{major}}.{{minor}}
-                type=semver,pattern={{major}}
-                type=raw,value=latest,enable=${{ github.event.release.prerelease == false }}
-
-      - name: Build debug para verificacion
-        uses: docker/build-push-action@v7
-        with:
-            context: .
-            target: debug
-            platforms: linux/amd64
-            load: true
-            push: false
-            tags: verify-debug:local
-            cache-from: type=gha
-            cache-to: type=gha,mode=max
-
-      - name: Verificar contrato (debug)
-        env:
-           VARIANT: debug
-        run: ./scripts/verify-image.sh verify-debug:local
-
-      - name: Build debug multi-arch y push
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          target: debug
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta-debug.outputs.tags }}
-          labels: ${{ steps.meta-debug.outputs.labels }}
           build-args: |
             BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
             VCS_REF=${{ github.sha }}
@@ -163,12 +115,13 @@ jobs:
             echo ""
             echo "**Digest:** \`$DIGEST\`"
             echo ""
+            echo "**Plataformas:** linux/amd64, linux/arm64"
+            echo ""
             echo "**Tags:**"
             echo "$TAGS" | sed 's/^/- `/;s/$/`/'
             echo ""
-            echo "**Plataformas:** linux/amd64, linux/arm64"
+            echo "### Referencia inmutable recomendada"
             echo ""
-            echo "Referencia inmutable:"
             echo '```'
             echo "${{ env.IMAGE }}@$DIGEST"
             echo '```'
