@@ -33,5 +33,5 @@ jobs:
           package-name: node-runtime-base
           package-type: container
           min-versions-to-keep: 20
-          # Nunca tocar tags SemVer estables ni los móviles.
-          ignore-versions: '^(latest|\d+|\d+\.\d+|\d+\.\d+\.\d+)$'
+          # Protege tags SemVer, latest, y los referrers de attestations.
+          ignore-versions: '^(latest|\d+|\d+\.\d+|\d+\.\d+\.\d+|sha256-.*)$'
