@@ -140,18 +140,18 @@ jobs:
       - name: Build debug multi-arch y push
         uses: docker/build-push-action@v7
         with:
-            context: .
-            target: debug
-            platforms: linux/amd64,linux/arm64
-            push: true
-            tags: ${{steps.meta.outputs.tags}}
-            labels: ${{steps.meta.outputs.labels}}
-            build-args:
-                BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
-                VCS_REF=${{ github.sha }}
-                VERSION=${{ steps.version.outputs.version }}
-            cache-from: type=gha
-            cache-to: type=gha,mode=max
+          context: .
+          target: debug
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta-debug.outputs.tags }}
+          labels: ${{ steps.meta-debug.outputs.labels }}
+          build-args: |
+            BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+            VCS_REF=${{ github.sha }}
+            VERSION=${{ steps.version.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Resumen
         env:
